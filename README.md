@@ -24,9 +24,9 @@ This repository documents my development journey for the assignment — includin
 - Tried building the application but failed. Tried using VSCode, got to know it is an Eclipse RCP application so tried on Eclipse several times on various versions/distributions - but builds kept failing.
 - Tried both the modern and conventional way for setting up the local project - ChatGPT Deep Research Tool's comprehensive PDF guide, as well as DBeaver's official wiki documentation for local setup and contribution.
 - Maybe due to my inexperience in Java, I'm missing out on some important stuff.
-- Nonetheless, set up a Postgres DB with PostGIS enabled and imported the sample GeoJSON data. Imported it into DBeaver, ran some queries to add a column containing basic GeoJSON-like structure.
+- Nonetheless, [set up a Postgres DB](#postgres-section) with PostGIS enabled and imported the sample GeoJSON data. Imported it into DBeaver, ran some queries to add a column containing basic GeoJSON-like structure.
 - Also closely inspected the export functionality that DBeaver provides and figured out where to add the new GeoJSON export feature code.
-- Despite build errors, modified/added the code covering the functionality of GeoJSON export in the codebase using two approaches.
+- Despite build errors, **modified/added the code covering the functionality of GeoJSON export** in the codebase using [two approaches](#solution-section).
 
 ---
 
@@ -91,6 +91,8 @@ Despite these steps, consistent build failures (see below) made it difficult to 
 
 ---
 
+<a id="postgres-section"></a>
+
 ## 🗃️ PostgreSQL + PostGIS Integration and Testing
 
 When build issues persisted, I redirected my focus to setting up a PostGIS-enabled PostgreSQL instance and verifying how spatial data is stored and queried. This also provided a testing ground for what the GeoJSON exporter output should match.
@@ -135,6 +137,8 @@ SELECT name, ST_AsGeoJSON(geom) FROM your_layer_name;
 This confirmed that the geometry field is correctly stored and retrievable as GeoJSON — matching what the exporter should output programmatically.
 
 ---
+
+<a id="solution-section"></a>
 
 ## 🧩 Proposed Code Implementation (2 approaches)
 
