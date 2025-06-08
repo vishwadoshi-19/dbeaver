@@ -135,4 +135,16 @@
         <keyword id="org.jkiss.dbeaver.core.keyword.datatransfer" label="%keyword.org.jkiss.dbeaver.preferences.datatransfer"/>
     </extension>
 
+    <extension point="org.jkiss.dbeaver.dataTransfer.exporter">
+        <exporter
+            id="org.jkiss.dbeaver.exporter.geojson"
+            label="GeoJSON"
+            description="Export spatial data as GeoJSON FeatureCollection"
+            class="org.jkiss.dbeaver.tools.transfer.stream.exporter.GeoJSONDataExporter"
+            fileExtension="geojson"
+            contentType="application/geo+json"
+            icon="platform:/plugin/org.jkiss.dbeaver.data.transfer.ui/icons/formats/json.png"/>
+    </extension>
+
+
 </plugin>
