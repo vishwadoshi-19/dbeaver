@@ -1,9 +1,9 @@
 # 🚀 DBeaver GeoJSON Export Integration - Assignment for Lepton Softwares
 
-**Due Date:** 8 June 2025
-**Candidate:** Vishwa Doshi
-**Company:** Lepton Softwares
-**Assignment:** Extend DBeaver CE to support exporting spatial data as GeoJSON
+- **Due Date:** 8 June 2025
+- **Candidate:** Vishwa Doshi
+- **Company:** Lepton Software
+- **Assignment:** Extend DBeaver CE to support exporting spatial data as GeoJSON
 
 ---
 
@@ -87,7 +87,7 @@ Despite these steps, consistent build failures (see below) made it difficult to 
 | 6 June 2025 | 🔹 Installed 5 different Eclipse versions trying to resolve plugin/classpath problems.                                                                                                                                  |
 | 7 June 2025 | 🔹 Referenced [DBeaver Wiki](https://github.com/dbeaver/dbeaver/wiki/Develop-in-Eclipse) and Deep Research PDF ([attached](assets/Installing%20and%20Building%20DBeaver%20CE%20from%20Source%20on%20Windows%2011.pdf)). |
 | 7 June 2025 | 🔹 Installed PostgreSQL and PostGIS; shifted temporarily to database setup due to persistent build issues.                                                                                                              |
-| 8 June 2025 | 🔹 Implemented proposed GeoJSON export logic in codebase — awaiting successful build to verify and demo.                                                                                                                |
+| 8 June 2025 | 🔹 Implemented proposed GeoJSON export logic in codebase - awaiting successful build to verify and demo.                                                                                                                |
 
 ---
 
@@ -287,6 +287,8 @@ SELECT json_build_object(
 FROM my_table AS t;
 ```
 
+---
+
 ## 🥈 Approach 2: Live Geometry Transformation via SQL
 
 This approach dynamically applies `ST_AsGeoJSON()` via a JDBC call during export. This avoids requiring the user to modify the SQL, but needs deeper integration with the database engine.
@@ -440,6 +442,8 @@ public class GeoJSONDataExporter implements IStreamDataExporter {
 - Proceeds to build the Feature as before
 
 Both versions generate a GeoJSON `FeatureCollection` and iterate over each row to output spatial + attribute data.
+
+---
 
 ### 🧩 Common for both approaches - plugin.xml Configuration
 
