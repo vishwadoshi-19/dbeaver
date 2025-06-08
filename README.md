@@ -67,17 +67,27 @@ To set up the DBeaver build environment locally on Windows 11, I followed the of
 
 Despite these steps, consistent build failures (see below) made it difficult to proceed with UI testing from source.
 
+![build errors](./assets/vscode-build-error-logs-tools_build_cmd.png)
+![build errors](./assets/eclipse-build-errors.png)
+
+### **Eclipse Build Errors**
+
+- #### went from this :
+  ![build errors](./assets/eclipse-70k-errors.jpg)
+- #### to this haha
+  ![build errors](./assets/eclipse-2-errors.jpg)
+
 ---
 
 ## 📜 Progress Log
 
-| Date        | Update                                                                                                                     |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 6 June 2025 | 🔹 Cloned DBeaver repo and started setup. Encountered multiple Maven and Tycho errors.                                     |
-| 6 June 2025 | 🔹 Installed 5 different Eclipse versions trying to resolve plugin/classpath problems.                                     |
-| 7 June 2025 | 🔹 Referenced [DBeaver Wiki](https://github.com/dbeaver/dbeaver/wiki/Develop-in-Eclipse) and Deep Research PDF (attached). |
-| 7 June 2025 | 🔹 Installed PostgreSQL and PostGIS; shifted temporarily to database setup due to persistent build issues.                 |
-| 8 June 2025 | 🔹 Implemented proposed GeoJSON export logic in codebase — awaiting successful build to verify and demo.                   |
+| Date        | Update                                                                                                                                                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6 June 2025 | 🔹 Cloned DBeaver repo and started setup. Encountered multiple Maven and Tycho errors.                                                                                                                                  |
+| 6 June 2025 | 🔹 Installed 5 different Eclipse versions trying to resolve plugin/classpath problems.                                                                                                                                  |
+| 7 June 2025 | 🔹 Referenced [DBeaver Wiki](https://github.com/dbeaver/dbeaver/wiki/Develop-in-Eclipse) and Deep Research PDF ([attached](assets/Installing%20and%20Building%20DBeaver%20CE%20from%20Source%20on%20Windows%2011.pdf)). |
+| 7 June 2025 | 🔹 Installed PostgreSQL and PostGIS; shifted temporarily to database setup due to persistent build issues.                                                                                                              |
+| 8 June 2025 | 🔹 Implemented proposed GeoJSON export logic in codebase — awaiting successful build to verify and demo.                                                                                                                |
 
 ---
 
@@ -126,13 +136,11 @@ This confirmed that the geometry field is correctly stored and retrievable as Ge
 
 ---
 
-## 🧩 Proposed Code Implementation
+## 🧩 Proposed Code Implementation (2 approaches)
 
 Despite build issues, I have implemented and documented the GeoJSON exporter. Below is an outline of the changes made:
 
-### 💡 Two Approaches Implemented
-
-#### 🥇 Approach 1: Preprocessed Geometry Column (Query already includes ST_AsGeoJSON)
+## 🥇 Approach 1: Preprocessed Geometry Column (Query already includes ST_AsGeoJSON)
 
 ### ✅ Created New Exporter Class
 
@@ -146,8 +154,120 @@ This class is designed following the structure of `DataExporterJSON.java` with a
 - Structure output as a GeoJSON `FeatureCollection`
 
 ```java
-<code block for Approach 1 goes here>
+package org.jkiss.dbeaver.tools.transfer.stream.exporter;
+
+import org.jkiss.dbeaver.model.data.DBDAttributeBinding;
+import org.jkiss.dbeaver.model.data.DBDAttributeType;
+import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
+import org.jkiss.dbeaver.tools.transfer.DTUtils;
+import org.jkiss.dbeaver.tools.transfer.stream.IStreamDataExporter;
+import org.jkiss.dbeaver.tools.transfer.stream.IStreamDataExporterSite;
+import org.jkiss.utils.CommonUtils;
+import org.json.JSONObject;
+
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
+public class GeoJSONDataExporter implements IStreamDataExporter {
+
+    private IStreamDataExporterSite site;
+    private Writer writer;
+    private boolean firstFeature = true;
+    private int geomColumnIndex = -1;
+    private List<DBDAttributeBinding> columns;
+
+    @Override
+    public void init(IStreamDataExporterSite site) {
+        this.site = site;
+    }
+
+    @Override
+    public void dispose() {
+        CommonUtils.close(writer);
+    }
+
+    @Override
+    public void exportHeader(DBRProgressMonitor monitor) throws Exception {
+        writer = new OutputStreamWriter(site.getOutputStream(), StandardCharsets.UTF_8);
+        columns = site.getAttributes();
+
+        // Find geometry column (named "geom" or "geometry")
+        for (int i = 0; i < columns.size(); i++) {
+            String name = columns.get(i).getName().toLowerCase();
+            if (name.equals("geom") || name.equals("geometry")) {
+                geomColumnIndex = i;
+                break;
+            }
+        }
+
+        writer.write("{\"type\": \"FeatureCollection\", \"features\": [\n");
+    }
+
+    @Override
+    public void exportRow(DBRProgressMonitor monitor, Object[] row) throws Exception {
+        if (!firstFeature) {
+            writer.write(",\n");
+        }
+
+        JSONObject feature = new JSONObject();
+        feature.put("type", "Feature");
+
+        // Get geometry JSON string
+        Object geomValue = row[geomColumnIndex];
+        JSONObject geometry = new JSONObject(geomValue.toString());
+        feature.put("geometry", geometry);
+
+        // Add properties
+        JSONObject properties = new JSONObject();
+        for (int i = 0; i < columns.size(); i++) {
+            if (i == geomColumnIndex) continue;
+            String colName = columns.get(i).getName();
+            Object val = row[i];
+            properties.put(colName, val != null ? val : JSONObject.NULL);
+        }
+
+        feature.put("properties", properties);
+
+        writer.write(feature.toString());
+
+        firstFeature = false;
+    }
+
+    @Override
+    public void exportFooter(DBRProgressMonitor monitor) throws Exception {
+        writer.write("\n]}\n");
+        writer.flush();
+    }
+
+    @Override
+    public String getDefaultFileExtension() {
+        return "geojson";
+    }
+
+    @Override
+    public boolean supportsDataFormat(IStreamDataExporterSite site) {
+        return true; // supports all text output
+    }
+
+    @Override
+    public String getFormatDescription() {
+        return "Export spatial data in GeoJSON format";
+    }
+}
 ```
+
+✅ **Overview of What This Class Does**
+
+- **Implements:** `IStreamDataExporter` → DBeaver’s interface for exporting table rows
+- **Goal:** Export spatial data from PostGIS into **GeoJSON format**
+- **Handles:**
+  - Finding the geometry column
+  - For every row:
+    - Converts the geometry using `ST_AsGeoJSON`
+    - Adds the rest of the columns as properties
+- Wraps everything into a valid GeoJSON `FeatureCollection`
 
 ### ✅ Manual GeoJSON Query for Reference
 
@@ -167,23 +287,165 @@ SELECT json_build_object(
 FROM my_table AS t;
 ```
 
-#### 🥈 Approach 2: Live Geometry Transformation via SQL
+## 🥈 Approach 2: Live Geometry Transformation via SQL
 
 This approach dynamically applies `ST_AsGeoJSON()` via a JDBC call during export. This avoids requiring the user to modify the SQL, but needs deeper integration with the database engine.
 
-GeoJSONDataExporter.java :
+`GeoJSONDataExporter.java` :
 
 ```java
-<code block for Approach 2 goes here>
+package org.jkiss.dbeaver.tools.transfer.stream.exporter;
+
+import org.jkiss.code.NotNull;
+import org.jkiss.dbeaver.model.data.DBDAttributeBinding;
+import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
+import org.jkiss.dbeaver.model.exec.DBCException;
+import org.jkiss.dbeaver.tools.transfer.stream.IStreamDataExporter;
+import org.jkiss.dbeaver.tools.transfer.stream.IStreamDataExporterSite;
+import org.jkiss.utils.CommonUtils;
+import org.json.JSONObject;
+
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.sql.*;
+import java.util.List;
+
+public class GeoJSONDataExporter implements IStreamDataExporter {
+
+    private IStreamDataExporterSite site;
+    private Writer writer;
+    private List<DBDAttributeBinding> columns;
+    private int geomColumnIndex = -1;
+    private boolean firstFeature = true;
+
+    @Override
+    public void init(IStreamDataExporterSite site) {
+        this.site = site;
+    }
+
+    @Override
+    public void dispose() {
+        CommonUtils.close(writer);
+    }
+
+    @Override
+    public void exportHeader(@NotNull DBRProgressMonitor monitor) throws Exception {
+        writer = new OutputStreamWriter(site.getOutputStream(), StandardCharsets.UTF_8);
+        columns = site.getAttributes();
+
+        // Find geometry column
+        for (int i = 0; i < columns.size(); i++) {
+            String colName = columns.get(i).getName().toLowerCase();
+            if (colName.equals("geom") || colName.equals("geometry")) {
+                geomColumnIndex = i;
+                break;
+            }
+        }
+
+        if (geomColumnIndex == -1) {
+            throw new DBCException("No geometry column (named 'geom' or 'geometry') found in result set.");
+        }
+
+        writer.write("{\"type\": \"FeatureCollection\", \"features\": [\n");
+    }
+
+    @Override
+    public void exportRow(@NotNull DBRProgressMonitor monitor, Object[] row) throws Exception {
+        if (!firstFeature) {
+            writer.write(",\n");
+        }
+
+        JSONObject feature = new JSONObject();
+        feature.put("type", "Feature");
+
+        // Convert geometry to GeoJSON via SQL
+        Object geomValue = row[geomColumnIndex];
+        JSONObject geometry = null;
+
+        try (
+            Connection jdbcConn = site.getSourceObject()
+                .getDataSource()
+                .getConnection(monitor)
+                .getMeta()
+                .getConnection();
+            PreparedStatement ps = jdbcConn.prepareStatement("SELECT ST_AsGeoJSON(?)")
+        ) {
+            ps.setObject(1, geomValue);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String geoJsonStr = rs.getString(1);
+                    geometry = new JSONObject(geoJsonStr);
+                }
+            }
+        }
+
+        feature.put("geometry", geometry);
+
+        // Add properties (all other columns)
+        JSONObject properties = new JSONObject();
+        for (int i = 0; i < columns.size(); i++) {
+            if (i == geomColumnIndex) continue;
+            String colName = columns.get(i).getName();
+            Object val = row[i];
+            properties.put(colName, val != null ? val : JSONObject.NULL);
+        }
+
+        feature.put("properties", properties);
+
+        writer.write(feature.toString());
+        firstFeature = false;
+    }
+
+    @Override
+    public void exportFooter(@NotNull DBRProgressMonitor monitor) throws Exception {
+        writer.write("\n]}\n");
+        writer.flush();
+    }
+
+    @Override
+    public String getDefaultFileExtension() {
+        return "geojson";
+    }
+
+    @Override
+    public boolean supportsDataFormat(@NotNull IStreamDataExporterSite site) {
+        return true;
+    }
+
+    @Override
+    public String getFormatDescription() {
+        return "Export spatial data in GeoJSON format";
+    }
+}
+
 ```
+
+**What the exporter does:**
+
+- Detects which column is the geometry (named `geom` or `geometry`)
+- For **every row**, it:
+
+  - Extracts the geometry object from the row
+  - Opens a new SQL statement:
+
+    ```sql
+    SELECT ST_AsGeoJSON(?)
+    ```
+
+  - Binds the geometry object as a parameter
+  - Executes the query and gets back a GeoJSON string
+  - Parses that string into a `JSONObject`
+
+- Proceeds to build the Feature as before
 
 Both versions generate a GeoJSON `FeatureCollection` and iterate over each row to output spatial + attribute data.
 
 ### 🧩 Common for both approaches - plugin.xml Configuration
 
-This enables the exporter to appear in the Data Transfer Wizard inside DBeaver CE.
+Register the new format in the data transfer UI plugin so it appears in the Export Data wizard. Open the plugin manifest at `plugins/org.jkiss.dbeaver.data.transfer/plugin.xml` Add a new `<extension>` element for your exporter.
 
-This extension declaration was added at the end of the plugin descriptor file:
+This enables the exporter to appear in the Data Transfer Wizard inside DBeaver CE.
 
 ```xml
 <extension point="org.jkiss.dbeaver.dataTransfer.exporter">
@@ -197,6 +459,14 @@ This extension declaration was added at the end of the plugin descriptor file:
         icon="platform:/plugin/org.jkiss.dbeaver.data.transfer.ui/icons/formats/json.png"/>
 </extension>
 ```
+
+In this snippet:
+
+- `id` is a unique identifier (e.g. `exporter_geojson`).
+- `label` is the format name shown in the UI (“GeoJSON”).
+- `class` is your Java exporter’s fully-qualified name.
+- `fileExtension="geojson"` ensures files get a `.geojson` suffix.
+- `icon` points to your new icon in the `icons/formats/` folder.
 
 ---
 
@@ -248,21 +518,38 @@ INSERT INTO locations (name, geom) VALUES
 }
 ```
 
-### ✅ Output Explanation
+---
 
-| Field        | Description                                                     |
-| ------------ | --------------------------------------------------------------- |
-| `type`       | Declares this is a `FeatureCollection`                          |
-| `features`   | Array of features, one per table row                            |
-| `geometry`   | Value from `ST_AsGeoJSON(geom)`, parsed into proper JSON object |
-| `properties` | All other non-geometry attributes (e.g. id, name)               |
+## Reference Images :
 
-## 🚨 Screenshots & References
+- ### Provided geojson data :
 
-### **Eclipse Build Errors**
+  ![build errors](./assets/provided-geoJson-sample-data.png)
 
--
--
+- ### Postgres DB setup in pgAdmin :
+
+  ![build errors](./assets/pgAdmin-postgis-postgres-db-setup.png)
+
+- ### Postgres DB imported and visualized in DBeaver :
+
+  ![build errors](./assets/dbeaver-postgis-postgres-db-imported.png)
+
+- ### Zoomed and selective visualization :
+
+  ![build errors](./assets/dbeaver-postgis-postgres-db-imported-zoomed-in.png)
+
+- ### Pre-existing export options in DBeaver :
+
+  ![build errors](./assets/dbeaver-existing-export-options.png)
+
+- ### SQL script to add a geoJSON column :
+
+  ![build errors](./assets/dbeaver-sql-script-to-add-a-column-geoJSON.png)
+
+- ### Exported geoJSON from that query :
+  ![build errors](./assets/geoJson-from-query-result.png)
+
+---
 
 ## 💭 Notes & Reflections
 
@@ -273,5 +560,3 @@ To show intent and capability, I’ve coded the full exporter module as per DBea
 This README serves as both a progress journal and a fallback deliverable to demonstrate intent, engineering diligence, and practical problem-solving.
 
 ---
-
-![My Logo](./assets/dbeaver-existing-export-options.png)
